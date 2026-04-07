@@ -1,0 +1,82 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+*.manifest
+*.spec
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- uv (keep uv.lock in repo for reproducibility) ---
+.python-version
+
+# --- Testing / coverage ---
+.pytest_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+nosetests.xml
+.tox/
+.nox/
+
+# --- Type checkers / linters ---
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+.ruff_cache/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Env files (secrets) ---
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+*.log
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+
+# --- IDE (uncomment if you do not commit IDE config) ---
+# .idea/
+# .vscode/
+
+# --- Assignment: training / logging ---
+wandb/
+lightning_logs/
+runs/
+
+# Experiment artifacts (keep .gitkeep; ignore generated runs under BPEresult/)
+BPEresult/*
+!BPEresult/.gitkeep
+
+# Local checkpoints / exports (adjust if you version specific fixtures)
+checkpoints/
+*.ckpt
+
+# Large local datasets — do not commit (download per README / course /data)
+data/
+*.bin
+*.memmap
