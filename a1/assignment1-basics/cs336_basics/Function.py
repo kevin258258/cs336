@@ -19,11 +19,15 @@ def get_batch(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     max_start = len(dataset) - context_length
     starts = torch.randint(0, max_start, (batch_size,))
+    # np.memmap slices are often read-only; copy to avoid torch non-writable warnings.
     x = torch.stack(
-        [torch.as_tensor(dataset[start : start + context_length], dtype=torch.long) for start in starts.tolist()]
+        [torch.from_numpy(np.array(dataset[start : start + context_length], copy=True)).to(torch.long) for start in starts.tolist()]
     )
     y = torch.stack(
-        [torch.as_tensor(dataset[start + 1 : start + context_length + 1], dtype=torch.long) for start in starts.tolist()]
+        [
+            torch.from_numpy(np.array(dataset[start + 1 : start + context_length + 1], copy=True)).to(torch.long)
+            for start in starts.tolist()
+        ]
     )
     return x.to(device), y.to(device)
 
