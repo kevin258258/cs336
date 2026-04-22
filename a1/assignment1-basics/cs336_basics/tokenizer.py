@@ -145,6 +145,9 @@ class Tokenizer:
     def __init__(self, vocab, merges, special_tokens=None) -> None:
         self.vocab = dict(vocab)
         self.merges = list(merges)
+        self.merge_ranks: dict[tuple[bytes, bytes], int] = {
+            pair: rank for rank, pair in enumerate(self.merges)
+        }
         self.special_tokens = sorted(special_tokens or [], key=len, reverse=True)
 
         if self.special_tokens:
@@ -155,6 +158,7 @@ class Tokenizer:
                     self.vocab[new_id] = st_bytes
 
         self.vocab_inv: dict[bytes, int] = {v: k for k, v in self.vocab.items()}
+        self._bpe_cache: dict[bytes, tuple[bytes, ...]] = {}
 
         if self.special_tokens:
             self._special_re = re.compile("(" + "|".join(re.escape(st) for st in self.special_tokens) + ")")
@@ -164,19 +168,46 @@ class Tokenizer:
     def decode(self, ids: list[int]) -> str:
         return b"".join(self.vocab[i] for i in ids).decode("utf-8", errors="replace")
 
-    def _apply_merges(self, tokens: list[bytes]) -> list[bytes]:
-        for a, b in self.merges:
-            new_tokens: list[bytes] = []
+    def _bpe(self, token_bytes: bytes) -> tuple[bytes, ...]:
+        cached = self._bpe_cache.get(token_bytes)
+        if cached is not None:
+            return cached
+
+        word = tuple(bytes([b]) for b in token_bytes)
+        if len(word) <= 1:
+            self._bpe_cache[token_bytes] = word
+            return word
+
+        while True:
+            pairs = list(zip(word, word[1:]))
+            best_pair = None
+            best_rank = None
+            for pair in pairs:
+                rank = self.merge_ranks.get(pair)
+                if rank is None:
+                    continue
+                if best_rank is None or rank < best_rank:
+                    best_pair = pair
+                    best_rank = rank
+            if best_pair is None:
+                break
+
+            first, second = best_pair
+            new_word: list[bytes] = []
             i = 0
-            while i < len(tokens):
-                if i < len(tokens) - 1 and tokens[i] == a and tokens[i + 1] == b:
-                    new_tokens.append(a + b)
+            while i < len(word):
+                if i < len(word) - 1 and word[i] == first and word[i + 1] == second:
+                    new_word.append(first + second)
                     i += 2
                 else:
-                    new_tokens.append(tokens[i])
+                    new_word.append(word[i])
                     i += 1
-            tokens = new_tokens
-        return tokens
+            word = tuple(new_word)
+            if len(word) <= 1:
+                break
+
+        self._bpe_cache[token_bytes] = word
+        return word
 
     def encode(self, text: str) -> list[int]:
         if not text:
@@ -194,8 +225,7 @@ class Tokenizer:
                 continue
             for match in re.finditer(GPT2_PAT, part):
                 token_str = match.group()
-                byte_list = [bytes([b]) for b in token_str.encode("utf-8")]
-                merged = self._apply_merges(byte_list)
+                merged = self._bpe(token_str.encode("utf-8"))
                 for tok in merged:
                     ids.append(self.vocab_inv[tok])
         return ids

@@ -81,6 +81,19 @@ def set_optimizer_lr(optimizer: torch.optim.Optimizer, lr: float) -> None:
         param_group["lr"] = lr
 
 
+def resolve_device(requested_device: str) -> str:
+    if requested_device.startswith("cuda"):
+        try:
+            # Probe CUDA kernel usability, not just torch.cuda.is_available().
+            _ = torch.zeros(1, device=requested_device)
+            return requested_device
+        except Exception as exc:
+            print(f"[warn] CUDA device '{requested_device}' is not usable: {exc}")
+            print("[warn] Falling back to CPU. Upgrade PyTorch CUDA build for this GPU to use CUDA training.")
+            return "cpu"
+    return requested_device
+
+
 @torch.no_grad()
 def evaluate(
     model: TransformerLM,
@@ -136,6 +149,7 @@ def main() -> None:
     args = parse_args()
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
+    device = resolve_device(args.device)
 
     train_data = load_token_array(args.train_data, args.data_format, args.data_dtype)
     val_data = load_token_array(args.val_data, args.data_format, args.data_dtype)
@@ -148,8 +162,8 @@ def main() -> None:
         num_heads=args.num_heads,
         d_ff=args.d_ff,
         rope_theta=args.rope_theta,
-        device=args.device,
-    ).to(args.device)
+        device=device,
+    ).to(device)
 
     optimizer = AdamW(
         model.parameters(),
@@ -177,7 +191,7 @@ def main() -> None:
         )
         set_optimizer_lr(optimizer, lr)
 
-        x, y = get_batch(train_data, batch_size=args.batch_size, context_length=args.context_length, device=args.device)
+        x, y = get_batch(train_data, batch_size=args.batch_size, context_length=args.context_length, device=device)
 
         logits = model(x)
         loss = cross_entropy(logits.reshape(-1, args.vocab_size), y.reshape(-1))
@@ -199,7 +213,7 @@ def main() -> None:
                 batch_size=args.batch_size,
                 context_length=args.context_length,
                 vocab_size=args.vocab_size,
-                device=args.device,
+                device=device,
                 num_batches=args.eval_batches,
             )
             print(f"step={step:>7d} val_loss={val_loss:.6f}")
